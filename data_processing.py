@@ -2,13 +2,12 @@
 import os 
 import pandas as pd
 from openai import OpenAI # openai api 客戶端
+import shutil  # 替代 !rm 指令
 from dotenv import load_dotenv, find_dotenv # dotenv 是專門用來讀取.env套件的套件，並接上環境
 from langchain.document_loaders import PyPDFLoader
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.chains import RetrievalQA,  ConversationalRetrievalChain
-from langchain_openai import OpenAIEmbeddings
-from langchain.chat_models import ChatOpenAI
+from langchain.vectorstores import Chroma
 
 
 def setup_enviroment():
@@ -103,9 +102,8 @@ def load_all_first_pages_with_csv_metadata(folder_path, csv_path):
     return all_first_pages
 
 
-
-
-def clean_metadata(document): # 只接收單一doc.metadata
+ 
+def clean_metadata(metadata): # 只接收單一doc.metadata，所以是clean_all_documents_metadata 的子函式
     """清理並標準化metadata
     一、接收 def load_all_first_pages_with_csv_metadata 處理完的一頁文檔
     二、指定保留的keys
@@ -115,85 +113,118 @@ def clean_metadata(document): # 只接收單一doc.metadata
     
     clean_meta = {}
     for key in keep_keys:
-        if key in document:
-            clean_meta[key] = document[key]
+        if key in metadata:
+            clean_meta[key] = metadata[key]
     
     return clean_meta
 
+def clean_all_documents_metadata(documents):
+    '''清理所有文件的metadata'''
+    for doc in documents:
+        doc.metadata = clean_metadata(doc.metadata)
+    print(f"finish  cleaning {len(documents)} metadata ")
+    return documents
 
 
-# all_abstracts_with_metadata會經過資料擷取與欄位清理
 
-
-def split_document():
+def split_document(documents):
+    """分割檔案
+    一、輸入清理好的clean_documents
+    二、使用RecursiveCharacterTextSplitter分割文件
+    """
     # 分割檔案
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000, 
         chunk_overlap=50,
         separators=[ "\n\n", ". ", "\n", "(?<=\. )", " ", ""]
         )    
-    docs = text_splitter.split_documents(all_abstracts_with_metadata)
-    print(len(docs)) 
-    print(len(all_abstracts_with_metadata)) 
+    docs = text_splitter.split_documents(documents)
+    print(f"split {len(docs)} documents") 
+    print(f"end up {len(documents)} chunks") 
 
-def create_vectordb():
+
+
+def create_vectordb(documents, persist_directory='./chroma_db'):
+    '''建立向量資料庫
+    一、建立資料夾
+    二、清除舊的資料庫，確保資料乾淨
+    三、建立embedding
+    四、建立向量資料庫
+
+    '''
     # 建立資料夾
-    os.makedirs('./chroma_db', exist_ok=True)
-    print("finish！")
+    os.makedirs(persist_directory, exist_ok=True)
+    print("folder exist")
 
-    # 檢查是否成功
-    print(f"資料夾存在嗎？{os.path.exists('./chroma_db')}")
+    # 清除舊的資料庫，確保資料乾淨
+    if os.path.exists(persist_directory):
+        shutil.rmtree(persist_directory)
+        os.makedirs(persist_directory, exist_ok=True)
+        print("🗑️ 已清除舊資料庫")      
 
     # define embedding
     embeddings = OpenAIEmbeddings()
 
-    # 注意，需要先在自己的環境中建立資料庫路徑
-    persist_directory = './chroma_db' # 指定資料庫路徑
-    !rm -rf ./chroma_db  # remove old database files if any
-
     # 建立新的向量資料庫，並將文件放進去
-    from langchain.vectorstores import Chroma
+
     vectordb = Chroma.from_documents(
-        documents=docs,
+        documents=documents, # 剛剛傳入的參數檔案
         embedding=embeddings,
         persist_directory=persist_directory
     )
-
-    vectordb.persist() # 手動儲存剛剛建立的資料庫（現在不用手動了，自動儲存）
+    print(f"fininsh creating vectordb, contains {len(documents)} chunks")
+    return vectordb
 
 
 # 使用 def mian() 整合數據流
-    def main():
-        """執行主要流程"""
-        print("start buliding RAG database...")
+def main():
+    """執行主要流程"""
+    print("start buliding RAG database...")
 
-        # step1 - setting enviorment
-        if not setup_enviroment():
-            return False
+    # step1 - setting enviorment
+    if not setup_enviroment():
+        return False
 
-        # step2 - setting path
-        folder_path = "/Users/mangtinglee/Desktop/2025_gap_careerpath/RAG_LLM/pdfs" #這兩塊可能連到github之後要改
-        csv_path = "/Users/mangtinglee/Desktop/2025_gap_careerpath/RAG_LLM/meta_data_correction.csv"
+    # step2 - setting path
+    folder_path = "/Users/mangtinglee/Desktop/2025_gap_careerpath/RAG_LLM/pdfs" #這兩塊可能連到github之後要改
+    csv_path = "/Users/mangtinglee/Desktop/2025_gap_careerpath/RAG_LLM/meta_data_correction.csv"
 
-            # checking path
-        if not os.path.exists(folder_path):
-            print(f"not found pdf folder: {folder_path}")
-            return False
+        # checking path
+    if not os.path.exists(folder_path):
+        print(f"not found pdf folder: {folder_path}")
+        return False
         
-        if not os.path.exists(csv_path):
-            print(f"not found pdf folder: {csv_path}")
-            return False
+    if not os.path.exists(csv_path):
+        print(f"not found pdf folder: {csv_path}")
+        return False
 
-        try:
-            # step3: loading pdf (data strem starting...)
-            print("\n step 1: loading documents")
-            documents = load_all_first_pages_with_csv_metadata(folder_path, csv_path)
+    try:
+        # step3: loading pdf (data strem starting...)
+        print("\n step 1: loading documents")
+        documents = load_all_first_pages_with_csv_metadata(folder_path, csv_path)
 
-            # step4: clean matadata
-            print('\n step 2: clean metadata')
-            clean_documents = clean_metadata(documents)
+        # step4: clean matadata
+        print('\n step 2: clean metadata')
+        clean_documents = clean_all_documents_metadata(documents)
+
+        # step5: spliting document
+        print("\n step 3: start spliting")
+        split_docs = split_document(clean_documents)
+
+        # step6: creat vector database
+        print("\n step 4: creat vector database")
+        vectordb = create_vectordb(split_docs)
+
+    except Exception as e:
+        print(f"error:{str(e)}")
+        return False
 
 
-    all_abstracts_with_metadata = load_all_first_pages_with_csv_metadata(folder_path, csv_path)
-    for doc in all_abstracts_with_metadata:
-        doc.metadata = clean_metadata(doc.metadata)
+if __name__ == "__main__":
+    success = main()
+    if success:
+        print("finish data processing, now can execute streamlit_ui.py. ")
+    else:
+        print("error")
+    
+
