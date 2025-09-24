@@ -4,10 +4,13 @@ import pandas as pd
 from openai import OpenAI # openai api 客戶端
 import shutil  # 替代 !rm 指令
 from dotenv import load_dotenv, find_dotenv # dotenv 是專門用來讀取.env套件的套件，並接上環境
-from langchain.document_loaders import PyPDFLoader
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain_community.document_loaders import PyPDFLoader
+# 舊版：from langchain.document_loaders import PyPDFLoader
+from langchain_openai import OpenAIEmbeddings
+# 舊版：from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
+# 舊版：from langchain.vectorstores import Chroma
 
 
 def setup_enviroment():
