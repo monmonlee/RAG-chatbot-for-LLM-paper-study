@@ -22,3 +22,16 @@
 - **Embedding**: OpenAI Embeddings
 - **Processing**: PyPDF, tiktoken
 - **Frontend**: Streamlit (開發中)
+
+
+## 專案結構
+your_rag_project/
+├── data_processing.py          # 你的草稿程式碼（清理後）
+├── rag_system.py              # 你現有的檢索+QA邏輯
+├── streamlit_ui.py            # UI介面
+├── config.py                  # 設定檔
+├── requirements.txt           # 套件清單
+├── .env                       # API金鑰
+├── chroma_db/                 # 向量資料庫（執行後生成）
+├── pdfs/                      # 原始PDF檔案
+└── meta_data_correction.csv   # metadata檔案

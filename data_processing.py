@@ -31,8 +31,10 @@ def setup_enviroment():
         print("✅ Success! API key loaded")
         print(f"Key starts with: {api_key[:15]}...")
         print(f"Key length: {len(api_key)} characters")
+        return True
     else:
         print("❌ Still not working")
+        return False
 
 
 
@@ -139,11 +141,12 @@ def split_document(documents):
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000, 
         chunk_overlap=50,
-        separators=[ "\n\n", ". ", "\n", "(?<=\. )", " ", ""]
+        separators=[ "\n\n", ". ", "\n", "(?<=\.- )", " ", ""]
         )    
     docs = text_splitter.split_documents(documents)
     print(f"split {len(docs)} documents") 
-    print(f"end up {len(documents)} chunks") 
+    print(f"end up {len(documents)} chunks")
+    return docs
 
 
 
@@ -217,6 +220,8 @@ def main():
         # step6: creat vector database
         print("\n step 4: creat vector database")
         vectordb = create_vectordb(split_docs)
+        print("\n finish data processing, now can execute streamlit_ui.py.")
+        return True
 
     except Exception as e:
         print(f"error:{str(e)}")
@@ -225,9 +230,6 @@ def main():
 
 if __name__ == "__main__":
     success = main()
-    if success:
-        print("finish data processing, now can execute streamlit_ui.py. ")
-    else:
-        print("error")
+
     
 
