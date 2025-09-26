@@ -2,27 +2,31 @@
 
 # 問題：兩個class or one class?
 
-# 啟動資料庫
+
+
 import os # 作業系統相關功能（讀取環境變數）
 from openai import OpenAI # openai api 客戶端
 from dotenv import load_dotenv, find_dotenv # dotenv 是專門用來讀取.env套件的套件，並接上環境
-_ = load_dotenv(find_dotenv()) # 讀取.env檔案
-client = OpenAI(
-    api_key=os.environ['OPENAI_API_KEY']
-)
-print("done")
-# from langchain.vectorstores import Chroma
-from langchain_chroma import Chroma
+from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
-embeddings = OpenAIEmbeddings()
-vectordb = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
 
 
 
-def set_enviorment():# 還是這個應該要變成init?
+
+def setup_enviorment():# 還是這個應該要變成init?
     # 啟動openai api
     # 呼叫data_processing.py已經處理好的資料庫 vectordb
-    
+    # 啟動資料庫
+    _ = load_dotenv(find_dotenv()) # 讀取.env檔案
+    client = OpenAI(
+        api_key=os.environ['OPENAI_API_KEY']
+    )
+    print("done")
+    # activate vectirdb
+    embeddings = OpenAIEmbeddings()
+    vectordb = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
+
+
 
 class # 混合查詢（因為）
 
