@@ -6,12 +6,14 @@ from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.schema import BaseRetriever, Document
 from typing import List, Any
-from langchain_openai import ChatOpenAI
 from pydantic import Field
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import PromptTemplate
+from langchain.chains import ConversationalRetrievalChain
 
 
 
-def setup_enviorment():
+def setup_environment():
     # 啟動openai api
     # 呼叫data_processing.py已經處理好的資料庫 vectordb
     # 啟動資料庫
@@ -21,7 +23,7 @@ def setup_enviorment():
     )
     
     # activate llm
-    llm = ChatOpenAI(model="gpt-3.5-turbo")  
+    llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)  
 
     # activate vectirdb
     embeddings = OpenAIEmbeddings()
@@ -129,6 +131,51 @@ Now extract from the query above:
         """異步版本"""
         return self._get_relevant_documents(query)
 
+class SmartRAGSystem:
+
+    def __init__(self, retriever, llm):
+        self.llm = llm
+        self.retriever = retriever
+
+    def query(self, question):
+        """對外接口"""
+        return self._llm_answer(question)
+    
+    def _llm_answer(self, question):
+        # 建立有歷史對話的解析器
+        memory = ConversationBufferMemory(
+            memory_key="chat_history", # 告訴 chain 去哪裡找歷史對話
+            return_messages=True, # 返回的是物件（長得像json or meta data）
+            output_key="answer"
+        )
+
+        # 建立自定義prompt
+        qa_prompt = PromptTemplate(
+            template="""請基於以下檢索到的文獻內容回答問題。
+
+        檢索到的文獻：
+        {context}
+
+        問題：{question}
+
+        請直接基於上述文獻內容回答問題，列出相關的論文標題和主要內容。如果文獻中沒有相關資訊，請明確說明。
+
+        答案：""",
+            input_variables=["context", "question"]
+        )
+        qa = ConversationalRetrievalChain.from_llm(
+            llm=self.llm,
+            chain_type="stuff",
+            retriever=self.retriever,
+            return_source_documents=True,
+            memory=memory,
+            combine_docs_chain_kwargs={"prompt": qa_prompt}  # 加入自定義prompt
+        )
+        result = qa({"question": question})
+        
+        return result['answer']
+
+
 
 
 def main():
@@ -136,15 +183,21 @@ def main():
     
     try:
         # step1 - setting enviorment
-        llm, vectordb =  setup_enviorment()
+        llm, vectordb =  setup_environment()
         print("enviorment setup already")
 
     except Exception as e:
         print("Setup failed:", e)
         return False
     
-    # step2 - activate hybridHybridRetriever
-    custom_retriever = SmartHybridRetriever(vectordb=vectordb, llm=llm)
-    print(custom_retriever)
+    # step2 - activate class hybridHybridRetriever
+    retriever = SmartHybridRetriever(vectordb=vectordb, llm=llm)
+
+    #step3 - activate class hybridHybridRetriever
+    rag = SmartRAGSystem(retriever, llm)
+    answer = rag.query("可以跟我說關於llm的限制嗎？")
+    print("最終答案：", answer)
+
+
 if __name__ == "__main__":
     cool = main()
